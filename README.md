@@ -3,13 +3,16 @@
 > A Soroban timelock vault that releases a student's weekly allowance in daily installments — putting discipline on-chain so parents sleep easy and students stop going broke by Wednesday.
 
 ---
+
 ## Stellar Contract
+
 Link: https://stellar.expert/explorer/testnet/contract/CBKFO3VGYBLNNS3VDTDOUXV2SIZCVVJLCSZFU5GIJWTO2O7E5PQDPY2E
 
-Contract Address: CBKFO3VGYBLNNS3VDTDOUXV2SIZCVVJLCSZFU5GIJWTO2O7E5PQDPY2E
+Contract Address: `CBKFO3VGYBLNNS3VDTDOUXV2SIZCVVJLCSZFU5GIJWTO2O7E5PQDPY2E`
 
-<img width="1920" height="1293" alt="Screenshot 2026-03-31 at 16-11-06 Contract CBKFO3VGYBLNNS3VDTDOUXV2SIZCVVJLCSZFU5GIJWTO2O7E5PQDPY2E StellarExpert" src="https://github.com/user-attachments/assets/4d81b424-d5a5-4722-af00-3ef94ac62488" />
+<img width="1920" height="1293" alt="BaonGuard contract on StellarExpert" src="https://github.com/user-attachments/assets/4d81b424-d5a5-4722-af00-3ef94ac62488" />
 
+---
 
 ## Problem
 
@@ -17,7 +20,29 @@ A college student in Pasig City receives their full weekly *baon* (allowance) di
 
 ## Solution
 
-The parent deposits the week's USDC into a BaonGuard Soroban contract. The student can only withdraw **≤ ₱200 equivalent per 24 hours** — enforced by `env.ledger().timestamp()`. No bank, no middleman, no "transfer fees for each installment." Just a contract that literally cannot hand over more than the daily limit before the clock says so.
+The parent deposits the week's USDC into a BaonGuard Soroban contract. The student can only withdraw **≤ ₱200 equivalent per 24 hours** — enforced by `env.ledger().timestamp()`. No bank, no middleman, no transfer fees. Just a contract that literally cannot hand over more than the daily limit before the clock says so.
+
+---
+
+## Architecture
+
+```
+Browser (React + Vite)
+    │  HTTP/JSON
+    ▼
+FastAPI Backend (Python)
+    │  HTTPS JSON-RPC
+    ▼
+Stellar Testnet RPC
+    │
+    ▼
+Soroban Contract (Rust)
+```
+
+Three layers, clean separation:
+- **React frontend** — wallet connection via Freighter, vault dashboard, withdraw/initialize forms
+- **FastAPI backend** — proxies all Stellar RPC calls server-side (fixes CORS), validates inputs, returns structured errors
+- **Soroban contract** — enforces daily limit, 24h cooldown, and `require_auth()` on-chain
 
 ---
 
@@ -29,128 +54,113 @@ The parent deposits the week's USDC into a BaonGuard Soroban contract. The stude
 | **USDC (SEP-41 token)** | Allowance currency deposited by parent |
 | **XLM** | Network gas fees |
 | **`env.ledger().timestamp()`** | On-chain clock for the 24-hour cooldown |
-
----
-
-## MVP Delivery Timeline (2–4 hours)
-
-| Hour | Milestone |
-|---|---|
-| 0 – 0.5 | Scaffold repo, write `Cargo.toml`, confirm toolchain |
-| 0.5 – 1.5 | Write and locally test `lib.rs` (initialize + withdraw + get_vault_info) |
-| 1.5 – 2.5 | Write `test.rs` — all 5 tests passing with `cargo test` |
-| 2.5 – 3.5 | Build Wasm, deploy to Testnet, invoke via Soroban CLI |
-| 3.5 – 4.0 | Wire minimal web frontend (read-only vault dashboard) + demo recording |
+| **Freighter wallet** | Browser-based transaction signing |
 
 ---
 
 ## Prerequisites
 
-- **Rust** ≥ 1.74 with `wasm32-unknown-unknown` target  
-  ```
-  rustup target add wasm32-unknown-unknown
-  ```
-- **Soroban CLI** ≥ 21.x  
-  ```
-  cargo install --locked soroban-cli
-  ```
-- **Stellar Testnet** account funded via [Friendbot](https://friendbot.stellar.org)
+- **Node.js** ≥ 18 + npm
+- **Python** 3.11+
+- **Freighter** browser extension — [freighter.app](https://www.freighter.app)
+- **Rust** ≥ 1.74 with `wasm32-unknown-unknown` target (only needed to rebuild the contract)
 
 ---
 
-## Build
+## Setup
+
+### 1. Frontend
+
+```bash
+npm install
+```
+
+Create `.env` in the project root:
+```
+VITE_CONTRACT_ID=CBKFO3VGYBLNNS3VDTDOUXV2SIZCVVJLCSZFU5GIJWTO2O7E5PQDPY2E
+VITE_API_URL=http://localhost:8000
+```
+
+### 2. Backend
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+Create `backend/.env`:
+```
+CONTRACT_ID=CBKFO3VGYBLNNS3VDTDOUXV2SIZCVVJLCSZFU5GIJWTO2O7E5PQDPY2E
+STELLAR_RPC_URL=https://soroban-testnet.stellar.org
+NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+ADMIN_SECRET_KEY=your_testnet_secret_key_here
+```
+
+Get a free Testnet keypair at [Stellar Laboratory](https://laboratory.stellar.org/#account-creator?network=test).
+
+---
+
+## Running Locally
+
+Start the backend (terminal 1):
+```bash
+uvicorn backend.main:app --reload
+```
+
+Start the frontend (terminal 2):
+```bash
+npm run dev
+```
+
+Open `http://localhost:5173` — connect your Freighter wallet and you're in.
+
+Backend API docs available at `http://localhost:8000/docs`.
+
+---
+
+## Contract
+
+The Soroban contract (`src/lib.rs`) is already deployed and must not be redeployed unless contract logic changes.
+
+### Build
 
 ```bash
 soroban contract build
-# Output: target/wasm32-unknown-unknown/release/baonguard.wasm
 ```
 
----
-
-## Test
+### Test
 
 ```bash
 cargo test
 ```
 
-Expected output — all 5 tests pass:
+### CLI Invocations
 
-```
-test tests::test_happy_path_withdraw_succeeds_after_24h ... ok
-test tests::test_withdraw_exceeds_daily_limit_panics    ... ok
-test tests::test_withdraw_before_24h_panics             ... ok
-test tests::test_state_correctly_updated_after_withdrawal ... ok
-test tests::test_non_student_withdraw_panics            ... ok
-```
-
----
-
-## Deploy to Testnet
-
-```bash
-soroban contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/baonguard.wasm \
-  --source-account YOUR_SECRET_KEY \
-  --rpc-url https://soroban-testnet.stellar.org \
-  --network-passphrase "Test SDF Network ; September 2015"
-```
-
-Save the returned `CONTRACT_ID` for subsequent invocations.
-
----
-
-## CLI Invocations
-
-### `initialize` — parent sets up the vault
-
+Initialize the vault:
 ```bash
 soroban contract invoke \
-  --id CONTRACT_ID \
-  --source-account PARENT_SECRET_KEY \
+  --id CBKFO3VGYBLNNS3VDTDOUXV2SIZCVVJLCSZFU5GIJWTO2O7E5PQDPY2E \
+  --source-account YOUR_SECRET_KEY \
   --rpc-url https://soroban-testnet.stellar.org \
   --network-passphrase "Test SDF Network ; September 2015" \
   -- initialize \
   --student GBSTUDENT_WALLET_ADDRESS \
   --token USDC_TOKEN_CONTRACT_ID \
-  --daily_limit 2000000   # 0.20 USDC in stroops (7-decimal token)
+  --daily_limit 2000000
 ```
 
-### `withdraw` — student pulls today's allowance
-
+Withdraw:
 ```bash
 soroban contract invoke \
-  --id CONTRACT_ID \
+  --id CBKFO3VGYBLNNS3VDTDOUXV2SIZCVVJLCSZFU5GIJWTO2O7E5PQDPY2E \
   --source-account STUDENT_SECRET_KEY \
   --rpc-url https://soroban-testnet.stellar.org \
   --network-passphrase "Test SDF Network ; September 2015" \
   -- withdraw \
-  --amount 2000000        # ≤ daily_limit
-```
-
-### `get_vault_info` — frontend read
-
-```bash
-soroban contract invoke \
-  --id CONTRACT_ID \
-  --source-account STUDENT_SECRET_KEY \
-  --rpc-url https://soroban-testnet.stellar.org \
-  --network-passphrase "Test SDF Network ; September 2015" \
-  -- get_vault_info
-```
-
-Sample response:
-
-```json
-{
-  "student": "GBSTUDENT...",
-  "daily_limit": 2000000,
-  "last_withdrawal_timestamp": 1712000000,
-  "current_balance": 12000000
-}
+  --amount 2000000
 ```
 
 ---
 
 ## License
 
-MIT © 2024 BaonGuard Contributors
+MIT © 2025 BaonGuard Contributors
