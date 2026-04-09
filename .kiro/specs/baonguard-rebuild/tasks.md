@@ -152,7 +152,7 @@ then testing (17–19).
 
 ## Phase 6: Final Verification
 
-- [ ] 18. End-to-end smoke test
+- [x] 18. End-to-end smoke test
   - [~] 18.1 Start FastAPI backend: `uvicorn backend.main:app --reload`
   - [~] 18.2 Start React frontend: `npm run dev`
   - [~] 18.3 Connect Freighter wallet in the browser

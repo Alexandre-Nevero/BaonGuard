@@ -1,6 +1,6 @@
 import {
   isConnected,
-  getPublicKey,
+  getAddress,
   signTransaction,
 } from "@stellar/freighter-api";
 
@@ -11,13 +11,17 @@ let _publicKey = null;
  * Throws if Freighter is not installed or the user rejects.
  */
 export async function connectWallet() {
-  const connected = await isConnected();
-  if (!connected) {
+  const { isConnected: connected, error: connErr } = await isConnected();
+  if (connErr || !connected) {
     throw new Error(
       "Freighter is not installed. Please install the Freighter browser extension to continue."
     );
   }
-  _publicKey = await getPublicKey();
+  const { address, error: addrErr } = await getAddress();
+  if (addrErr) {
+    throw new Error(`Freighter error: ${addrErr.message ?? addrErr}`);
+  }
+  _publicKey = address;
   return _publicKey;
 }
 
@@ -28,8 +32,13 @@ export async function connectWallet() {
  * @returns {Promise<string>} Signed transaction XDR
  */
 export async function signTx(transactionXDR, networkPassphrase) {
-  const signed = await signTransaction(transactionXDR, { networkPassphrase });
-  return signed;
+  const { signedTransaction, error } = await signTransaction(transactionXDR, {
+    networkPassphrase,
+  });
+  if (error) {
+    throw new Error(`Freighter signing error: ${error.message ?? error}`);
+  }
+  return signedTransaction;
 }
 
 /**
