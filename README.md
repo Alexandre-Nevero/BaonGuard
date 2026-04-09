@@ -1,6 +1,7 @@
 # BaonGuard
 
 > A Soroban timelock vault that releases a student's weekly allowance in daily installments — putting discipline on-chain so parents sleep easy and students stop going broke by Wednesday.
+<img width="1920" height="1470" alt="Screenshot 2026-04-09 at 12-17-56 BaonGuard — Daily Allowance Vault" src="https://github.com/user-attachments/assets/70e1defb-7c65-4faf-8e67-ec047c7a84b7" />
 
 ---
 
